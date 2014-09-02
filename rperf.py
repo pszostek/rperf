@@ -111,7 +111,7 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
                         "[{host}/{hosts}]".format(
                             host=summary_count,
                             hosts=hostsno),
-                        "white",
+                        "magenta",
                         attrs=["bold"]),
                         message.string))
             queue.task_done()

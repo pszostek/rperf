@@ -17,6 +17,7 @@ from termcolor import cprint, colored
 from time import localtime, strftime
 from prettytable import from_csv
 from Queue import Queue
+from StringIO import StringIO
 
 
 def cut_out_comments(hostfile_lines):
@@ -99,7 +100,7 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
         ssh_cmd = ' '.join(["ssh", ssh_serv, cmd])
         #ssh_cmd = cmd
         if verbose:
-            printq("Running command %s" % ssh_cmd)
+            print("Running command %s" % ssh_cmd)
 
         ssh_serv = Popen(ssh_cmd,
                          shell=True,
@@ -134,7 +135,7 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
         if verbose or print_stderr:
             if not stderr:
                 stderr = ""
-            output += "{stderrs}\n{stderr}".format(stderrs=colored("stderr", "green", attrs=['bold']),
+            output += "{stderrs}\n{stderr}".format(stderrs=colored("stderr", "red", attrs=['bold']),
                                                    stderr=stderr)
         queue.put(output)
         result = parse_perf(stderr)
@@ -171,26 +172,26 @@ def flip_dictionary(ddict):
     return rdict
 
 
-def output_results(results, output_file, hosts_vertically):
+def output_results(results, output_buffer, hosts_vertically):
     if hosts_vertically:  # event horizontally
         first_host = results.keys()[0]
         event_names = results[first_host].keys()
         events_str = ',' + ','.join(event_names) + '\n'
-        output_file.write(events_str)
+        output_buffer.write(events_str)
         for hostname, values_on_host in results.iteritems():
             row = hostname + ',' + \
                 ','.join([str(value) for value in values_on_host.values()])
-            output_file.write(row + '\n')
+            output_buffer.write(row + '\n')
 
     else:  # hosts horizontally, events vertically
         hosts_str = ',' + ','.join(results.keys()) + '\n'
-        output_file.write(hosts_str)
+        output_buffer.write(hosts_str)
         host_names = results.keys()
         results = flip_dictionary(results)
         for event_name, values_on_hosts in results.iteritems():
             row = event_name + ',' + \
                 ','.join([str(value) for value in values_on_hosts.values()])
-            output_file.write(row + '\n')
+            output_buffer.write(row + '\n')
 
 
 def make_remote_command(arguments, precmd):
@@ -298,16 +299,20 @@ if __name__ == "__main__":
                                 print_stdout=options.inline_stdout,
                                 print_stderr=options.inline_stderr)
 
-    with open(output_path, 'w+r') as output_file:
-        output_results(results=perf_stats,
-                       output_file=output_file,
-                       hosts_vertically=options.hosts_vertically)
 
-        if options.dump:
-            cprint("\nResults:", "white", attrs=["bold"])
-            output_file.seek(0)
-            pretty_table = from_csv(output_file)
-            print(pretty_table)
+    output_buffer = StringIO()
+    output_results(results=perf_stats,
+                   output_buffer=output_buffer,
+                   hosts_vertically=options.hosts_vertically)
+
+    if options.dump:
+        cprint("\nResults:", "white", attrs=["bold"])
+        output_buffer.seek(0)
+        pretty_table = from_csv(output_buffer)
+        print(pretty_table)
+
+    with open(output_path, 'w+r') as output_file:
+        output_file.write(output_buffer.getvalue())
 
     if verbose:
         print("Results have been written to %s" % output_path)

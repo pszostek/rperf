@@ -19,17 +19,6 @@ from prettytable import from_csv
 from Queue import Queue
 
 
-class StoppableThread(Thread):
-
-    def __init__(self, target, args):
-        Thread.__init__(self, target=target, args=args)
-        self.active = True
-
-    def join(self):
-        self.active = False
-        Thread.join(self)
-
-
 def cut_out_comments(hostfile_lines):
     output = []
     for line in hostfile_lines:
@@ -77,18 +66,6 @@ def parse_perf(perf_output):
     return stats
 
 
-class Message(object):
-
-    def __init__(self, string):
-        self.string = string
-
-
-class Summary(object):
-
-    def __init__(self, string):
-        self.string = string
-
-
 def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
     results = OrderedDict()
     host_counter = 1
@@ -100,9 +77,7 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
             message = queue.get()
             if message is None:  # job is done
                 break
-            elif isinstance(message, Message):
-                print(message.string)
-            else:  # is Summary
+            else:
                 summary_count += 1
                 hostsno = str(len(hosts))
                 print(
@@ -113,7 +88,7 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
                             hosts=hostsno),
                         "magenta",
                         attrs=["bold"]),
-                        message.string))
+                        message), end="")
             queue.task_done()
 
     def gather_single(host, user, results, queue):
@@ -141,40 +116,40 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
         stdout, stderr = ssh_serv.communicate()
         time_ = strftime("%H:%M:%S", localtime())
 
+        output = ""
         if ssh_serv.returncode != 0:
-            prints("{time} {success} {host}".format(
+            output += "{time} {success} {host}\n".format(
                 hosts=str(len(hosts)),
                 time=time_,
                 success=colored("[FAILED]", "red"),
-                host=host
-            ))
+                host=host)
         else:
-            prints("{time} {success} {host}".format(
+            output += "{time} {success} {host}\n".format(
                 hosts=str(len(hosts)),
                 time=time_,
                 success=colored("[SUCCESS]", "green"),
                 host=host
-            ))
+            )
 
         if verbose or print_stdout:
             if not stdout:
                 stdout = ""
-            printq(colored("stdout", "green", attrs=['bold']))
-            printq(stdout)
+            output += "{stdouts}\n{stdout}".format(stdouts=colored("stdout", "green",attrs=['bold']),
+                                                   stdout=stdout)
 
         if verbose or print_stderr:
             if not stderr:
                 stderr = ""
-            printq(colored("stderr", "red", attrs=['bold']))
-            printq(stderr)
-
+            output += "{stderrs}\n{stderr}".format(stderrs=colored("stderr", "green",attrs=['bold']),
+                                                   stderr=stderr)
+        queue.put(output)
         result = parse_perf(stderr)
         results[host] = result
 
     workers = [Thread(target=gather_single, args=(host, user, results, write_queue))
                for host in hosts]
 
-    printer_thread = StoppableThread(target=printer, args=(write_queue,))
+    printer_thread = Thread(target=printer, args=(write_queue,))
     printer_thread.start()
 
     for thread in workers:

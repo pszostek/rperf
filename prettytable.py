@@ -1334,9 +1334,12 @@ def _str_block_width(val):
 
 def from_csv(fp, field_names = None, **kwargs):
 
-    dialect = csv.Sniffer().sniff(fp.read(1024))
-    fp.seek(0)
-    reader = csv.reader(fp, dialect)
+    try:
+        dialect = csv.Sniffer().sniff(fp.read(1024))
+        fp.seek(0)
+        reader = csv.reader(fp, dialect)
+    except csv.Error_:
+        reader = csv.reader(fp, delimiter=',')
 
     table = PrettyTable(**kwargs)
     if field_names:

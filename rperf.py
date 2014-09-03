@@ -92,12 +92,6 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
             queue.task_done()
 
     def gather_single(host, user, results, queue):
-        def printq(string):
-            queue.put(Message(string))
-
-        def prints(string):
-            queue.put(Summary(string))
-
         if user is not None:
             ssh_serv = "%s@%s" % (user, host)
         else:

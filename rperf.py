@@ -134,13 +134,13 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
         if verbose or print_stdout:
             if not stdout:
                 stdout = ""
-            output += "{stdouts}\n{stdout}".format(stdouts=colored("stdout", "green",attrs=['bold']),
+            output += "{stdouts}\n{stdout}".format(stdouts=colored("stdout", "green", attrs=['bold']),
                                                    stdout=stdout)
 
         if verbose or print_stderr:
             if not stderr:
                 stderr = ""
-            output += "{stderrs}\n{stderr}".format(stderrs=colored("stderr", "green",attrs=['bold']),
+            output += "{stderrs}\n{stderr}".format(stderrs=colored("stderr", "green", attrs=['bold']),
                                                    stderr=stderr)
         queue.put(output)
         result = parse_perf(stderr)

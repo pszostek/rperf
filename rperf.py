@@ -125,6 +125,8 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
                 success=colored("[SUCCESS]", "green"),
                 host=host
             )
+            result = parse_perf(stderr)
+            results[host] = result
 
         if verbose or print_stdout:
             if not stdout:
@@ -138,8 +140,7 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
             output += "{stderrs}\n{stderr}".format(stderrs=colored("stderr", "red", attrs=['bold']),
                                                    stderr=stderr)
         queue.put(output)
-        result = parse_perf(stderr)
-        results[host] = result
+
 
     workers = [Thread(target=gather_single, args=(host, user, results, write_queue))
                for host in hosts]

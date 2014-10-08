@@ -7,17 +7,45 @@ from optparse import OptionParser
 from subprocess import Popen, PIPE
 try:
     from collections import OrderedDict
-except:
+except ImportError:
     from OrderedDict import OrderedDict
 from threading import Thread
-from functools import partial
-import re
 import os
 from termcolor import cprint, colored
 from time import localtime, strftime
 from prettytable import from_csv
 from Queue import Queue
+from collections import deque, defaultdict
 from StringIO import StringIO
+import json
+
+def get_conf(conf_file):
+    def parse_single(single_run):
+        if 'id' not in single_run:
+            single_run['id'] = single_run['binary']
+        if 'host' not in single_run:
+            single_run['host'] = 'localhost'
+        if 'env' in single_run:
+            assert type(single_run['env']) is dict
+        if 'user' not in single_run:
+            single_run['user'] = None 
+        assert 'events' in single_run or 'pfm_events' in single_run
+        if 'events' not in single_run:
+            single_run['events'] = None
+        if 'pfm_events' not in single_run:
+            single_run['pfm_events'] = None
+
+    with open(conf_file, 'r') as conf:
+        lines = conf.readlines()
+        content = ''.join(lines)
+        conf_json = json.loads(content)
+    if type(conf_json) is list:
+        for item in conf_json:
+            parse_single(item)
+        return conf_json
+    else:
+        parse_single(conf_json)
+        return list(conf_json)
 
 
 def cut_out_comments(hostfile_lines):
@@ -34,13 +62,8 @@ def cut_out_comments(hostfile_lines):
     return output
 
 
-def get_list_of_hosts(hostfile_path):
-    hostfile = open(hostfile_path, 'r')
-    hosts = cut_out_comments(hostfile.readlines())
-    return hosts
 
-
-def parse_perf(perf_output):
+def parse_perf(perf_output, include_time):
     lines = [line.strip() for line in perf_output.split("\n")]
     stats_started = False
     stats = OrderedDict()
@@ -56,23 +79,24 @@ def parse_perf(perf_output):
             parts = line.split(" ")
             if line.startswith("<not supported>"):
                 stats[parts[2]] = None  # <not supported> name
-            elif line.endswith("seconds time elapsed"):
+            elif line.endswith("seconds time elapsed") and include_time:
                 stats["time"] = float(parts[0])
             else:
                 try:
                     value = int(parts[0].replace(',', ''))  # get rid of commas
                     stats[parts[1]] = value
-                except:
+                except IndexError: #OK, there is nothing in this line
                     pass
     return stats
 
 
-def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
+def gather_results(conf, verbose, include_time, grab_output, print_stdout, print_stderr):
     results = OrderedDict()
-    host_counter = 1
     write_queue = Queue()
+    done_hosts_queue = Queue()
+    hosts = set([run['host'] for run in conf])
 
-    def printer(queue):
+    def printer(queue, hosts_number):
         summary_count = 0
         while True:
             message = queue.get()
@@ -80,29 +104,29 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
                 break
             else:
                 summary_count += 1
-                hostsno = str(len(hosts))
                 print(
                     "%s %s" %
                     (colored(
                         "[{host}/{hosts}]".format(
                             host=summary_count,
-                            hosts=hostsno),
+                            hosts=hosts_number),
                         "magenta",
                         attrs=["bold"]),
                         message), end="")
             queue.task_done()
 
-    def gather_single(host, user, results, queue):
-        if user is not None:
-            ssh_serv = "%s@%s" % (user, host)
-        else:
-            ssh_serv = host
-        ssh_cmd = ' '.join(["ssh", ssh_serv, cmd])
-        #ssh_cmd = cmd
-        if verbose:
-            print("Running command %s" % ssh_cmd)
+    def gather_single(command, id_, host, user, results, write_queue, done_hosts_queue, grab_output=False):
+        if host != "localhost":
+            if user is not None:
+                ssh_serv = "%s@%s" % (user, host)
+            else:
+                ssh_serv = host
+            command = ' '.join(["ssh", ssh_serv, command])
 
-        ssh_serv = Popen(ssh_cmd,
+        if verbose:
+            print("Running command %s" % command)
+
+        ssh_serv = Popen(command,
                          shell=True,
                          stdout=PIPE,
                          stdin=PIPE,
@@ -125,34 +149,55 @@ def gather_results(hosts, user, command, verbose, print_stdout, print_stderr):
                 success=colored("[SUCCESS]", "green"),
                 host=host
             )
-            result = parse_perf(stderr)
-            results[host] = result
+            result = parse_perf(stderr, include_time=include_time)
+            if grab_output:
+                result["output"] = stdout
+            results[id_] = result
+            done_hosts_queue.put(host)
 
         if verbose or print_stdout:
             if not stdout:
                 stdout = ""
-            output += "{stdouts}\n{stdout}".format(stdouts=colored("stdout", "green", attrs=['bold']),
+            output += "{stdout_name}\n{stdout}".format(stdout_name=colored("stdout", "green", attrs=['bold']),
                                                    stdout=stdout)
 
         if verbose or print_stderr:
             if not stderr:
                 stderr = ""
-            output += "{stderrs}\n{stderr}".format(stderrs=colored("stderr", "red", attrs=['bold']),
+            output += "{stderr_name}\n{stderr}".format(stderr_name=colored("stderr", "red", attrs=['bold']),
                                                    stderr=stderr)
-        queue.put(output)
+        write_queue.put(output)
 
+    jobs = defaultdict(deque)
+    jobs_total = 0
+    jobs_done = 0
+    for run in conf:
+        command = make_remote_command(events=run.events,
+        pfm_events=run.pfm_events,
+                              precmd=run.precmd,
+                              env=run.env,
+                              command=run.command)
+        host = run.host
+        user = run.user
+        id_ = run.id
+        job = Thread(target=gather_single, args=(command, id_, host, user, results, write_queue, done_hosts_queue, grab_output))
+        jobs[run["host"]].append(job)
+        jobs_total += 1
 
-    workers = [Thread(target=gather_single, args=(host, user, results, write_queue))
-               for host in hosts]
-
-    printer_thread = Thread(target=printer, args=(write_queue,))
+    printer_thread = Thread(target=printer, args=(write_queue,len(hosts)))
     printer_thread.start()
 
-    for thread in workers:
+    #bootstrap one job per host
+    for thread in [hostjobs[0] for hostjobs in jobs.values()]:
         thread.start()
 
-    for thread in workers:
-        thread.join()
+    while jobs_total != jobs_done:
+        host_done = done_hosts_queue.get()
+        jobs[host_done][0].join()
+        jobs_done += 1
+        jobs[host_done].popleft() # forget about thread
+        if len(jobs[host_done]) != 0:
+            jobs[host_done][0].start()
 
     write_queue.put(None)
     printer_thread.join()
@@ -187,7 +232,6 @@ def output_results(results, output_buffer, hosts_vertically):
     else:  # hosts horizontally, events vertically
         hosts_str = ',' + ','.join(results.keys()) + '\n'
         output_buffer.write(hosts_str)
-        host_names = results.keys()
         results = flip_dictionary(results)
         for event_name, values_on_hosts in results.iteritems():
             row = event_name + ',' + \
@@ -195,12 +239,12 @@ def output_results(results, output_buffer, hosts_vertically):
             output_buffer.write(row + '\n')
 
 
-def make_remote_command(arguments, precmd):
-    perf_cmd = arguments[:]
+def make_remote_command(events, pfm_events, precmd, env, command):
+    perf_cmd = "perf stat"
     perf_cmd = "perf " + ' '.join(perf_cmd)
 
     if precmd:
-        cmd = options.precmd + " && " + perf_cmd
+        cmd = options.precmd + " >/dev/null 2>&1 && " + perf_cmd
     else:
         cmd = perf_cmd
     cmd = "'%s'" % cmd
@@ -222,17 +266,22 @@ if __name__ == "__main__":
         dest="dump",
         help="Dump results on the stdout",
         action="store_true")
+    # parser.add_option(
+    #     "--hosts",
+    #     dest="hosts",
+    #     help="Path to the host file",
+    #     metavar="HOSTFILE")
+    # parser.add_option(
+    #     '-l',
+    #     "--user",
+    #     dest="user",
+    #     help="Remote user",
+        # metavar="REMOTEUSER")
     parser.add_option(
-        "--hosts",
-        dest="hosts",
-        help="Path to the host file",
-        metavar="HOSTFILE")
-    parser.add_option(
-        '-l',
-        "--user",
-        dest="user",
-        help="Remote user",
-        metavar="REMOTEUSER")
+        "--conf",
+        dest="conf",
+        help="Configuration file path (JSON)",
+        metavar="CONF_FILE")
     parser.add_option(
         "--inline-stdout",
         dest="inline_stdout",
@@ -254,20 +303,30 @@ if __name__ == "__main__":
         dest="hosts_vertically",
         help="Print hosts vertically instead of horizontally",
         action="store_true")
+    # parser.add_option(
+    #     '--pre',
+    #     dest="precmd",
+    #     help="Command to be executed before perf execution",
+    #     metavar="PRECMD")
     parser.add_option(
-        '--pre',
-        dest="precmd",
-        help="Command to be executed before perf execution",
-        metavar="PRECMD")
+        "--grab-output",
+        dest="grab_output",
+        help="Grab output and put as a column in the result table",
+        action="store_true")
+    parser.add_option(
+        "--include-time",
+        dest="include_time",
+        help="Include time from perf in the result table",
+        action="store_true")
 
-    (options, arguments) = parser.parse_args()
+    (options, _) = parser.parse_args()
     verbose = options.verbose
 
-    if options.hosts is None:
-        print("\nPath to the host file was not given.\n")
+    if options.conf is None:
+        print("\nPath to the configuration file was not given.\n")
         parser.print_help()
         sys.exit(1)
-    elif not os.path.isfile(options.hosts):
+    elif not os.path.isfile(options.conf):
         print("Given path does not point to a file.\n")
         sys.exit(2)
 
@@ -277,26 +336,18 @@ if __name__ == "__main__":
         print(
             "No output file given. The results will be printed to the standard output.")
 
-    hosts = get_list_of_hosts(options.hosts)
-    cmd = make_remote_command(arguments=arguments,
-                              precmd=options.precmd)
-
     if options.output is not None:
         output_path = options.output
     else:
         output_path = "rperf.csv"
 
-    if verbose:
-        print("Output will be written to %s" % output_path)
+    conf = get_conf(conf_file=options.conf)
 
-    if verbose:
-        print("Running through hosts file:")
-        print(hosts)
 
-    perf_stats = gather_results(hosts=hosts,
-                                user=options.user,
-                                command=cmd,
+    perf_stats = gather_results(conf=conf,
                                 verbose=verbose,
+                                include_time=options.include_time,
+                                grab_output=options.grab_output,
                                 print_stdout=options.inline_stdout,
                                 print_stderr=options.inline_stderr)
 

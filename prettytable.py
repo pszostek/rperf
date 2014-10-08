@@ -1338,8 +1338,9 @@ def from_csv(fp, field_names = None, **kwargs):
         dialect = csv.Sniffer().sniff(fp.read(1024))
         fp.seek(0)
         reader = csv.reader(fp, dialect)
-    except csv.Error_:
+    except csv.Error:
         reader = csv.reader(fp, delimiter=',')
+	fp.seek(0)
 
     table = PrettyTable(**kwargs)
     if field_names:

@@ -357,11 +357,14 @@ if __name__ == "__main__":
                    output_buffer=output_buffer,
                    hosts_vertically=options.hosts_vertically)
 
-    if options.dump:
-        cprint("\nResults:", "white", attrs=["bold"])
-        output_buffer.seek(0)
-        pretty_table = from_csv(output_buffer)
-        print(pretty_table)
+    try:
+    	if options.dump:
+    	    cprint("\nResults:", "white", attrs=["bold"])
+    	    output_buffer.seek(0)
+    	    pretty_table = from_csv(output_buffer)
+    	    print(pretty_table)
+    except:
+	pass
 
     with open(output_path, 'w+r') as output_file:
         output_file.write(output_buffer.getvalue())

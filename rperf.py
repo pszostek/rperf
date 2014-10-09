@@ -258,7 +258,11 @@ def make_remote_command(events, pfm_events, precmd, env, command):
 
     command += binary
     if precmd:
-        command = precmd + " >/dev/null 2>&1 && " + command 
+        if isinstance(precmd, basestring):
+            command = "{precmd} >/dev/null 2>&1 && {command}".format(precmd=precmd, command=command) 
+        elif isinstance(precmd, list):
+            precmds = '&&'.join(["{precmd} >/dev/null 2>&1 ".format(precmd=precmd_) for precmd_ in precmd])
+            command = "{precmds} && {command}".format(precmds=precmds, command=command)
 
     if env:
         for key, value in env.items():

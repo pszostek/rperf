@@ -1,2 +1,3 @@
-[{"id":"-c","host":"localhost", "binary":"taskset -c 0-55 /root/benchmarking/benchmarks_1node/VIFit/ParallelPdf_avx/main_XEON -n 768000 -b 512 -i -150 -c -a 4","env":{"GOMP_CPU_AFFINITY":"0-55"},"pre-script":["/root/benchmarking/setup.sh"], "pfm-events":["LLC_REFERENCES","LLC_MISSES"], "events":["L1-dcache-load-misses"]},
-{"id":"-p","host":"localhost", "binary":"taskset -c 0-55 /root/benchmarking/benchmarks_1node/VIFit/ParallelPdf_avx/main_XEON -n 768000 -b 512 -i -150 -c -a 4","env":{"GOMP_CPU_AFFINITY":"0-55"},"pre-script":["/root/benchmarking/setup.sh"], "pfm-events":["LLC_REFERENCES","LLC_MISSES"], "events":["L1-dcache-load-misses"]}]
+[{"id":"-c","host":"localhost", "command":"ls .","env":{"GOMP_CPU_AFFINITY":"0-55"},"pfm-events":["LLC_REFERENCES","LLC_MISSES"], "events":["L1-dcache-load-misses"]},
+{"id":"-l","host":"localhost", "command":"ls .","env":{"GOMP_CPU_AFFINITY":"0-55"}, "pfm-events":["LLC_REFERENCES","LLC_MISSES"], "events":["L1-dcache-load-misses"]},
+{"id":"-p","host":"olwork01", "command":"ls .","env":{"GOMP_CPU_AFFINITY":"0-55"}, "pfm-events":["LLC_REFERENCES","LLC_MISSES"], "events":["L1-dcache-load-misses"]}]

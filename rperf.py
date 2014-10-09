@@ -29,6 +29,8 @@ def get_conf(conf_file):
             assert type(single_run['env']) is dict
         if 'user' not in single_run:
             single_run['user'] = None 
+        if 'precmd' not in single_run:
+            single_run['precmd'] = None
         assert 'events' in single_run or 'pfm_events' in single_run
         if 'events' not in single_run:
             single_run['events'] = None
@@ -79,9 +81,11 @@ def parse_perf(perf_output, include_time):
             parts = line.split(" ")
             if line.startswith("<not supported>"):
                 stats[parts[2]] = None  # <not supported> name
-            elif line.endswith("seconds time elapsed") and include_time:
-                stats["time"] = float(parts[0])
+            elif line.endswith("seconds time elapsed"):
+                if include_time:
+                    stats["time"] = float(parts[0])
             else:
+                print(line)
                 try:
                     value = int(parts[0].replace(',', ''))  # get rid of commas
                     stats[parts[1]] = value
@@ -92,14 +96,14 @@ def parse_perf(perf_output, include_time):
 
 def gather_results(conf, verbose, include_time, grab_output, print_stdout, print_stderr):
     results = OrderedDict()
-    write_queue = Queue()
+    stdout_queue = Queue()
     done_hosts_queue = Queue()
-    hosts = set([run['host'] for run in conf])
+    jobs_number = len(conf)
 
-    def printer(queue, hosts_number):
+    def printer(stdout_queue, jobs_number):
         summary_count = 0
         while True:
-            message = queue.get()
+            message = stdout_queue.get()
             if message is None:  # job is done
                 break
             else:
@@ -107,53 +111,53 @@ def gather_results(conf, verbose, include_time, grab_output, print_stdout, print
                 print(
                     "%s %s" %
                     (colored(
-                        "[{host}/{hosts}]".format(
-                            host=summary_count,
-                            hosts=hosts_number),
+                        "[{job}/{jobs_number}]".format(
+                            job=summary_count,
+                            jobs_number=jobs_number),
                         "magenta",
                         attrs=["bold"]),
                         message), end="")
-            queue.task_done()
+            stdout_queue.task_done()
 
-    def gather_single(command, id_, host, user, results, write_queue, done_hosts_queue, grab_output=False):
+    def gather_single(command, id_, host, user, results, stdout_queue, done_hosts_queue, grab_output=False):
         if host != "localhost":
-            if user is not None:
+            if user:
                 ssh_serv = "%s@%s" % (user, host)
             else:
                 ssh_serv = host
-            command = ' '.join(["ssh", ssh_serv, command])
+            command = "ssh {user_server} '{command}'".format(user_server=ssh_serv, command=command)
 
         if verbose:
             print("Running command %s" % command)
 
-        ssh_serv = Popen(command,
+        command_pipe = Popen(command,
                          shell=True,
                          stdout=PIPE,
                          stdin=PIPE,
                          stderr=PIPE)
 
-        stdout, stderr = ssh_serv.communicate()
+        stdout, stderr = command_pipe.communicate()
         time_ = strftime("%H:%M:%S", localtime())
 
         output = ""
-        if ssh_serv.returncode != 0:
-            output += "{time} {success} {host}\n".format(
-                hosts=str(len(hosts)),
+        if command_pipe.returncode != 0:
+            output += "{time} {failure} {host}\n".format(
                 time=time_,
-                success=colored("[FAILED]", "red"),
+                failure=colored("[FAILED]", "red"),
                 host=host)
         else:
             output += "{time} {success} {host}\n".format(
-                hosts=str(len(hosts)),
                 time=time_,
                 success=colored("[SUCCESS]", "green"),
                 host=host
             )
             result = parse_perf(stderr, include_time=include_time)
+
             if grab_output:
                 result["output"] = stdout
+
             results[id_] = result
-            done_hosts_queue.put(host)
+        done_hosts_queue.put(host)
 
         if verbose or print_stdout:
             if not stdout:
@@ -166,25 +170,25 @@ def gather_results(conf, verbose, include_time, grab_output, print_stdout, print
                 stderr = ""
             output += "{stderr_name}\n{stderr}".format(stderr_name=colored("stderr", "red", attrs=['bold']),
                                                    stderr=stderr)
-        write_queue.put(output)
+        stdout_queue.put(output)
 
     jobs = defaultdict(deque)
     jobs_total = 0
     jobs_done = 0
     for run in conf:
-        command = make_remote_command(events=run.events,
-        pfm_events=run.pfm_events,
-                              precmd=run.precmd,
-                              env=run.env,
-                              command=run.command)
-        host = run.host
-        user = run.user
-        id_ = run.id
-        job = Thread(target=gather_single, args=(command, id_, host, user, results, write_queue, done_hosts_queue, grab_output))
+        command = make_remote_command(events=run["events"],
+        pfm_events=run["pfm_events"],
+                              precmd=run["precmd"],
+                              env=run["env"],
+                              command=run["command"])
+        host = run["host"]
+        user = run["user"]
+        id_ = run["id"]
+        job = Thread(target=gather_single, args=(command, id_, host, user, results, stdout_queue, done_hosts_queue, grab_output))
         jobs[run["host"]].append(job)
         jobs_total += 1
 
-    printer_thread = Thread(target=printer, args=(write_queue,len(hosts)))
+    printer_thread = Thread(target=printer, args=(stdout_queue,jobs_number))
     printer_thread.start()
 
     #bootstrap one job per host
@@ -199,7 +203,7 @@ def gather_results(conf, verbose, include_time, grab_output, print_stdout, print
         if len(jobs[host_done]) != 0:
             jobs[host_done][0].start()
 
-    write_queue.put(None)
+    stdout_queue.put(None)
     printer_thread.join()
 
     return results
@@ -219,6 +223,9 @@ def flip_dictionary(ddict):
 
 
 def output_results(results, output_buffer, hosts_vertically):
+    if not results:
+        return
+
     if hosts_vertically:  # event horizontally
         first_host = results.keys()[0]
         event_names = results[first_host].keys()
@@ -240,15 +247,24 @@ def output_results(results, output_buffer, hosts_vertically):
 
 
 def make_remote_command(events, pfm_events, precmd, env, command):
-    perf_cmd = "perf stat"
-    perf_cmd = "perf " + ' '.join(perf_cmd)
+    binary = command
+    command = "perf stat "
 
+    if pfm_events:
+        command += " --pfm-events %s " % ','.join(pfm_events)
+
+    if events:
+        command += " -e %s " % ','.join(events)
+
+    command += binary
     if precmd:
-        cmd = options.precmd + " >/dev/null 2>&1 && " + perf_cmd
-    else:
-        cmd = perf_cmd
-    cmd = "'%s'" % cmd
-    return cmd
+        command = precmd + " >/dev/null 2>&1 && " + command 
+
+    if env:
+        for key, value in env.items():
+            command = "export {key}={value} && {rest}".format(key=key, value=value, rest=command)
+
+    return command
 
 if __name__ == "__main__":
 
@@ -358,13 +374,13 @@ if __name__ == "__main__":
                    hosts_vertically=options.hosts_vertically)
 
     try:
-    	if options.dump:
-    	    cprint("\nResults:", "white", attrs=["bold"])
-    	    output_buffer.seek(0)
-    	    pretty_table = from_csv(output_buffer)
-    	    print(pretty_table)
+        if options.dump:
+            cprint("\nResults:", "white", attrs=["bold"])
+            output_buffer.seek(0)
+            pretty_table = from_csv(output_buffer)
+            print(pretty_table)
     except:
-	pass
+        pass
 
     with open(output_path, 'w+r') as output_file:
         output_file.write(output_buffer.getvalue())

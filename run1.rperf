@@ -1,0 +1,57 @@
+events: L1-dcache-load-misses, r01D3, r04D3
+pfm-events: LLC_REFERENCES, LLC_MISSES
+host: localhost
+env: GOMP_CPU_AFFINITY=0-55
+precmd: source /root/benchmarking/setup.sh
+    precmd: cd /root/benchmarking/benchmarks_1node/VIFit/ParallelPdf_avx2
+        [precmd: /root/tools/enable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 2
+        id: "avx2,turbo_on,2"]
+        [precmd: /root/tools/disable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 2
+        id: "avx2,turbo_off,2"]
+        [precmd: /root/tools/enable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 4
+        id: "avx2,turbo_on,4"]
+        [precmd: /root/tools/disable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 4
+        id: "avx2,turbo_off,2"]
+    precmd: cd /root/benchmarking/benchmarks_1node/VIFit/ParallelPdf_avx
+        [precmd: /root/tools/enable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 2
+        id: "avx,turbo_on,2"]
+        [precmd: /root/tools/disable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 2
+        id: "avx,turbo_off,2"]
+        [precmd: /root/tools/enable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 4
+        id: "avx,turbo_on,2"]
+        [precmd: /root/tools/disable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 4
+        id: "avx,turbo_off,2"]
+    precmd: cd /root/benchmarking/benchmarks_1node/VIFit/ParallelPdf_noVec
+        [precmd: /root/tools/enable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 2
+        id: "noVec,turbo_on,2"]
+        [precmd: /root/tools/disable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 2
+        id: "noVec,turbo_off,2"]
+        [precmd: /root/tools/enable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 4
+        id: "noVec,turbo_on,2"]
+        [precmd: /root/tools/disable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 4
+        id: "noVec,turbo_off,2"]
+    precmd: cd /root/benchmarking/benchmarks_1node/VIFit/ParallelPdf_avx
+        [precmd: /root/tools/enable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 2
+        id: "sse,turbo_on,2"]
+        [precmd: /root/tools/disable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 2
+        id: "sse,turbo_off,2"]
+        [precmd: /root/tools/enable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 4
+        id: "sse,turbo_on,2"]
+        [precmd: /root/tools/disable_turbo
+        command: taskset -c 0-55 ./main_XEON -n 768000 -b 512 -i -150 -c -a 4
+        id: "sse,turbo_off,2"]

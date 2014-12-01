@@ -19,6 +19,7 @@ from collections import deque, defaultdict
 from StringIO import StringIO
 import json
 
+
 def get_conf(conf_file):
     def parse_single(single_run):
         if 'id' not in single_run:
@@ -26,22 +27,22 @@ def get_conf(conf_file):
         if 'host' not in single_run:
             single_run['host'] = 'localhost'
         if 'env' in single_run:
-            assert type(single_run['env']) is dict
+            assert isinstance(single_run['env'], dict)
         if 'user' not in single_run:
-            single_run['user'] = None 
+            single_run['user'] = None
         if 'precmd' not in single_run:
             single_run['precmd'] = None
-        assert 'events' in single_run or 'pfm_events' in single_run
+        assert 'events' in single_run or 'pfm-events' in single_run
         if 'events' not in single_run:
             single_run['events'] = None
-        if 'pfm_events' not in single_run:
-            single_run['pfm_events'] = None
+        if 'pfm-events' not in single_run:
+            single_run['pfm-events'] = None
 
     with open(conf_file, 'r') as conf:
         lines = conf.readlines()
         content = ''.join(lines)
         conf_json = json.loads(content)
-    if type(conf_json) is list:
+    if isinstance(conf_json, list):
         for item in conf_json:
             parse_single(item)
         return conf_json
@@ -64,7 +65,6 @@ def cut_out_comments(hostfile_lines):
     return output
 
 
-
 def parse_perf(perf_output, include_time):
     lines = [line.strip() for line in perf_output.split("\n")]
     stats_started = False
@@ -78,7 +78,7 @@ def parse_perf(perf_output, include_time):
         elif stats_started:
             if not line:
                 continue
-            parts = line.split(" ")
+            parts = line.split()
             if line.startswith("<not supported>"):
                 stats[parts[2]] = None  # <not supported> name
             elif line.endswith("seconds time elapsed"):
@@ -89,12 +89,13 @@ def parse_perf(perf_output, include_time):
                 try:
                     value = int(parts[0].replace(',', ''))  # get rid of commas
                     stats[parts[1]] = value
-                except IndexError: #OK, there is nothing in this line
+                except IndexError:  # OK, there is nothing in this line
                     pass
     return stats
 
 
-def gather_results(conf, verbose, include_time, grab_output, print_stdout, print_stderr):
+def gather_results(
+        conf, verbose, include_time, grab_output, print_stdout, print_stderr):
     results = OrderedDict()
     stdout_queue = Queue()
     done_hosts_queue = Queue()
@@ -119,22 +120,25 @@ def gather_results(conf, verbose, include_time, grab_output, print_stdout, print
                         message), end="")
             stdout_queue.task_done()
 
-    def gather_single(command, id_, host, user, results, stdout_queue, done_hosts_queue, grab_output=False):
+    def gather_single(command, id_, host, user, results,
+                      stdout_queue, done_hosts_queue, grab_output=False):
         if host != "localhost":
             if user:
                 ssh_serv = "%s@%s" % (user, host)
             else:
                 ssh_serv = host
-            command = "ssh {user_server} '{command}'".format(user_server=ssh_serv, command=command)
+            command = "ssh {user_server} '{command}'".format(
+                user_server=ssh_serv,
+                command=command)
 
         if verbose:
             print("Running command %s" % command)
 
         command_pipe = Popen(command,
-                         shell=True,
-                         stdout=PIPE,
-                         stdin=PIPE,
-                         stderr=PIPE)
+                             shell=True,
+                             stdout=PIPE,
+                             stdin=PIPE,
+                             stderr=PIPE)
 
         stdout, stderr = command_pipe.communicate()
         time_ = strftime("%H:%M:%S", localtime())
@@ -154,7 +158,7 @@ def gather_results(conf, verbose, include_time, grab_output, print_stdout, print
             result = parse_perf(stderr, include_time=include_time)
 
             if grab_output:
-                result["output"] = stdout
+                result["output"] = stdout.strip()
 
             results[id_] = result
         done_hosts_queue.put(host)
@@ -163,35 +167,46 @@ def gather_results(conf, verbose, include_time, grab_output, print_stdout, print
             if not stdout:
                 stdout = ""
             output += "{stdout_name}\n{stdout}".format(stdout_name=colored("stdout", "green", attrs=['bold']),
-                                                   stdout=stdout)
+                                                       stdout=stdout)
 
         if verbose or print_stderr:
             if not stderr:
                 stderr = ""
             output += "{stderr_name}\n{stderr}".format(stderr_name=colored("stderr", "red", attrs=['bold']),
-                                                   stderr=stderr)
+                                                       stderr=stderr)
         stdout_queue.put(output)
 
+    # queue of watinig jobs. keys are hostnames, values are waiting threads
     jobs = defaultdict(deque)
     jobs_total = 0
     jobs_done = 0
     for run in conf:
         command = make_remote_command(events=run["events"],
-        pfm_events=run["pfm_events"],
-                              precmd=run["precmd"],
-                              env=run["env"],
-                              command=run["command"])
+                                      pfm_events=run["pfm-events"],
+                                      precmd=run["precmd"],
+                                      env=run["env"],
+                                      command=run["command"])
         host = run["host"]
         user = run["user"]
         id_ = run["id"]
-        job = Thread(target=gather_single, args=(command, id_, host, user, results, stdout_queue, done_hosts_queue, grab_output))
+        job = Thread(
+            target=gather_single,
+            args=(
+                command,
+                id_,
+                host,
+                user,
+                results,
+                stdout_queue,
+                done_hosts_queue,
+                grab_output))
         jobs[run["host"]].append(job)
         jobs_total += 1
 
-    printer_thread = Thread(target=printer, args=(stdout_queue,jobs_number))
+    printer_thread = Thread(target=printer, args=(stdout_queue, jobs_number))
     printer_thread.start()
 
-    #bootstrap one job per host
+    # bootstrap one job per host
     for thread in [hostjobs[0] for hostjobs in jobs.values()]:
         thread.start()
 
@@ -199,7 +214,7 @@ def gather_results(conf, verbose, include_time, grab_output, print_stdout, print
         host_done = done_hosts_queue.get()
         jobs[host_done][0].join()
         jobs_done += 1
-        jobs[host_done].popleft() # forget about thread
+        jobs[host_done].popleft()  # forget about thread
         if len(jobs[host_done]) != 0:
             jobs[host_done][0].start()
 
@@ -259,14 +274,22 @@ def make_remote_command(events, pfm_events, precmd, env, command):
     command += binary
     if precmd:
         if isinstance(precmd, basestring):
-            command = "{precmd} >/dev/null 2>&1 && {command}".format(precmd=precmd, command=command) 
+            command = "{precmd} >/dev/null 2>&1 && {command}".format(
+                precmd=precmd,
+                command=command)
         elif isinstance(precmd, list):
-            precmds = '&&'.join(["{precmd} >/dev/null 2>&1 ".format(precmd=precmd_) for precmd_ in precmd])
-            command = "{precmds} && {command}".format(precmds=precmds, command=command)
+            precmds = '&&'.join(
+                ["{precmd} >/dev/null 2>&1 ".format(precmd=precmd_) for precmd_ in precmd])
+            command = "{precmds} && {command}".format(
+                precmds=precmds,
+                command=command)
 
     if env:
         for key, value in env.items():
-            command = "export {key}={value} && {rest}".format(key=key, value=value, rest=command)
+            command = "export {key}={value} && {rest}".format(
+                key=key,
+                value=value,
+                rest=command)
 
     return command
 
@@ -354,7 +377,7 @@ if __name__ == "__main__":
         print("Given output file exists. It will be overwritten.")
     if not options.output and verbose:
         print(
-            "No output file given. The results will be printed to the standard output.")
+            "No output file given. The results will be dumped to rperf.csv.")
 
     if options.output is not None:
         output_path = options.output
@@ -363,14 +386,12 @@ if __name__ == "__main__":
 
     conf = get_conf(conf_file=options.conf)
 
-
     perf_stats = gather_results(conf=conf,
                                 verbose=verbose,
                                 include_time=options.include_time,
                                 grab_output=options.grab_output,
                                 print_stdout=options.inline_stdout,
                                 print_stderr=options.inline_stderr)
-
 
     output_buffer = StringIO()
     output_results(results=perf_stats,

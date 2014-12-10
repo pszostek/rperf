@@ -93,15 +93,31 @@ def parse_perf(perf_output, include_time):
                     pass
     return stats
 
+def average_results(results):
+    # results is a dictionary: {id : [res1, res2, res3]}
+    # turn it into {id : res}
+    def average(list_):
+        return sum(list_)/float(len(list_))
+    ret = {}
+    for id_, res_list in results.items():
+        average_res = {}
+        metrics = res_list[0].keys()
+        for metric in metrics:
+            try:
+                average_res[metric] = average([result[metric] for result in res_list])
+            except:
+                average_res[metric] = res_list[0][metric]
+        ret[id_] = average_res
+    return ret
 
 def gather_results(
-        conf, verbose, include_time, grab_output, print_stdout, print_stderr):
+        conf, verbose, include_time, grab_output, print_stdout, print_stderr, times):
     results = OrderedDict()
     stdout_queue = Queue()
     done_hosts_queue = Queue()
-    jobs_number = len(conf)
+    jobs_number = len(conf)*times
 
-    def printer(stdout_queue, jobs_number):
+    def printer(stdout_queue, total_jobs):
         summary_count = 0
         while True:
             message = stdout_queue.get()
@@ -112,9 +128,9 @@ def gather_results(
                 print(
                     "%s %s" %
                     (colored(
-                        "[{job}/{jobs_number}]".format(
+                        "[{job}/{total_jobs}]".format(
                             job=summary_count,
-                            jobs_number=jobs_number),
+                            total_jobs=total_jobs),
                         "magenta",
                         attrs=["bold"]),
                         message), end="")
@@ -160,7 +176,10 @@ def gather_results(
             if grab_output:
                 result["output"] = stdout.strip()
 
-            results[id_] = result
+            if id_ in results:
+                results[id_].append(result)
+            else:
+                results[id_] = [result]
         done_hosts_queue.put(host)
 
         if verbose or print_stdout:
@@ -180,7 +199,11 @@ def gather_results(
     jobs = defaultdict(deque)
     jobs_total = 0
     jobs_done = 0
-    for run in conf:
+    runs = []
+    for conf_run_id, conf_run in enumerate(conf):
+        for _ in xrange(times):
+            runs.append((conf_run_id, conf_run))
+    for run_id, run in runs: # create all the threads, but don't start them yet
         command = make_remote_command(events=run["events"],
                                       pfm_events=run["pfm-events"],
                                       precmd=run["precmd"],
@@ -214,14 +237,14 @@ def gather_results(
         host_done = done_hosts_queue.get()
         jobs[host_done][0].join()
         jobs_done += 1
-        jobs[host_done].popleft()  # forget about thread
+        jobs[host_done].popleft()  # forget about terminated thread
         if len(jobs[host_done]) != 0:
             jobs[host_done][0].start()
 
     stdout_queue.put(None)
     printer_thread.join()
 
-    return results
+    return average_results(results)
 
 
 def flip_dictionary(ddict):
@@ -304,6 +327,13 @@ if __name__ == "__main__":
         dest="output",
         help="Name of the output csv file. Default value is rperf.csv",
         metavar="FILE")
+    parser.add_option(
+        '-n',
+        '--times',
+        dest="times",
+        metavar="N",
+        help="Repeat each measurement N times and take an average of the results",
+        default=1)
     parser.add_option(
         '--dump',
         dest="dump",
@@ -391,7 +421,8 @@ if __name__ == "__main__":
                                 include_time=options.include_time,
                                 grab_output=options.grab_output,
                                 print_stdout=options.inline_stdout,
-                                print_stderr=options.inline_stderr)
+                                print_stderr=options.inline_stderr,
+                                times=int(options.times))
 
     output_buffer = StringIO()
     output_results(results=perf_stats,

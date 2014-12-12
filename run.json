@@ -1,3 +1,13 @@
-[{"id":"-c","host":"localhost", "precmd":["pwd","w"],"command":"ls .","env":{"GOMP_CPU_AFFINITY":"0-55"},"pfm-events":["LLC_REFERENCES","LLC_MISSES"], "events":["L1-dcache-load-misses"]},
-{"id":"-l","host":"localhost", "command":"ls .","env":{"GOMP_CPU_AFFINITY":"0-55"}, "pfm-events":["LLC_REFERENCES","LLC_MISSES"], "events":["L1-dcache-load-misses"]},
-{"id":"-p","host":"olwork01", "command":"ls .","env":{"GOMP_CPU_AFFINITY":"0-55"}, "pfm-events":["LLC_REFERENCES","LLC_MISSES"], "events":["L1-dcache-load-misses"]}]
+[{"id":"1","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"2","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"3","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"4","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"5","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"6","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"7","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"8","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"9","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"10","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"11","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"12","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]},
+{"id":"13","host":"localhost", "command":"sleep 1","env":{"GOMP_CPU_AFFINITY":"0-55"}, "events":["L1-dcache-load-misses"]}]

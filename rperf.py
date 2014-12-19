@@ -263,7 +263,6 @@ def gather_results(
                                       command=run["command"])
         host = run["host"]
         user = run["user"]
-        id_ = run["id"]
         hash_ = make_hash(run) # when saving the results, the key will be a hash instead of user-given id
         job = Thread(
             target=gather_single,
@@ -392,10 +391,7 @@ def make_remote_command(events, pfm_events, precmd, env, command):
 
     return command
 
-if __name__ == "__main__":
-
-    output_csv = False
-
+def main():
     parser = OptionParser()
     parser.add_option(
         '-o',
@@ -421,17 +417,6 @@ if __name__ == "__main__":
         dest="dump",
         help="Dump results on the stdout",
         action="store_true")
-    # parser.add_option(
-    #     "--hosts",
-    #     dest="hosts",
-    #     help="Path to the host file",
-    #     metavar="HOSTFILE")
-    # parser.add_option(
-    #     '-l',
-    #     "--user",
-    #     dest="user",
-    #     help="Remote user",
-        # metavar="REMOTEUSER")
     parser.add_option(
         "--conf",
         dest="conf",
@@ -458,20 +443,15 @@ if __name__ == "__main__":
         dest="hosts_vertically",
         help="Print hosts vertically instead of horizontally",
         action="store_true")
-    # parser.add_option(
-    #     '--pre',
-    #     dest="precmd",
-    #     help="Command to be executed before perf execution",
-    #     metavar="PRECMD")
     parser.add_option(
         "--grab-output",
         dest="grab_output",
         help="Grab output and put as a column in the result table",
         action="store_true")
     parser.add_option(
-        "--include-time",
-        dest="include_time",
-        help="Include time from perf in the result table",
+        "--no-time",
+        dest="no_time",
+        help="Do not include time from perf in the result table",
         action="store_true")
 
     (options, _) = parser.parse_args()
@@ -500,7 +480,7 @@ if __name__ == "__main__":
 
     perf_stats = gather_results(conf=conf,
                                 verbose=verbose,
-                                include_time=options.include_time,
+                                include_time=(not options.no_time),
                                 grab_output=options.grab_output,
                                 print_stdout=options.inline_stdout,
                                 print_stderr=options.inline_stderr,
@@ -527,3 +507,7 @@ if __name__ == "__main__":
 
     if verbose:
         print("Results have been written to %s" % output_path)
+
+if __name__ == "__main__":
+    main()
+ 

@@ -46,6 +46,10 @@ def get_conf(conf_filename):
         if 'id' not in run_cpy:
             # run_cpy['id'] = run_cpy['binary']
             run_cpy['id'] = None
+        if 'pinning' not in run_cpy:
+            run_cpy['pinning'] = None
+        if 'instances' not in run_cpy:
+            run_cpy['instances'] = 1
         if 'host' not in run_cpy:
             run_cpy['host'] = 'localhost'
         if 'env' in run_cpy:
@@ -110,7 +114,6 @@ def parse_perf(perf_output, include_time):
                 if include_time:
                     stats["time"] = float(parts[0])
             else:
-                print(line)
                 try:
                     value = int(parts[0].replace(',', ''))  # get rid of commas
                     stats[parts[1]] = value
@@ -359,7 +362,7 @@ def output_results(results, output_buffer, hosts_vertically):
             output_buffer.write(row + '\n')
 
 
-def make_remote_command(events, pfm_events, precmd, env, command):
+def make_remote_command(events, pfm_events, precmd, env, command, instances, pinning):
     binary = command
     command = "perf stat"
 
@@ -368,6 +371,17 @@ def make_remote_command(events, pfm_events, precmd, env, command):
 
     if events:
         command += " -e %s " % ','.join(events)
+
+    if instances > 1:
+        if pinning:
+            command += "multiple_instances.py --pinning {pin} --instances {inst} --command ".format(pin=pinning, inst=instances)
+        else:
+            command += "multiple_instances.py --instances {inst} --command ".format(pin=pinning, inst=instances)
+    else:
+        if pinning:
+            command += "taskset -c {pin}".format(pin=pinning)
+        else:
+            pass
 
     command += binary
     if precmd:

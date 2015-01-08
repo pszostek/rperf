@@ -195,7 +195,11 @@ def gather_single(command, id_, host, user, results,
                          stdin=PIPE,
                          stderr=PIPE)
 
-    stdout, stderr = command_pipe.communicate()
+    if verbose or print_stdout or print_stderr or grab_output:
+        stdout, stderr = command_pipe.communicate()
+    else:
+        command_pipe.wait()
+        stderr = command_pipe.stderr
     time_ = strftime("%H:%M:%S", localtime())
 
     output = ""
@@ -394,8 +398,8 @@ def make_remote_command(events, pfm_events, precmd, env, command, instances, pin
                 precmd=precmd,
                 command=command)
         elif isinstance(precmd, list):
-            precmds = '&&'.join(
-                ["{precmd} >/dev/null 2>&1 ".format(precmd=precmd_) for precmd_ in precmd])
+            precmds = ' && '.join(
+                ["{precmd} >/dev/null 2>&1".format(precmd=precmd_) for precmd_ in precmd])
             command = "{precmds} && {command}".format(
                 precmds=precmds,
                 command=command)

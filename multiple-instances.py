@@ -67,7 +67,7 @@ def getargs():
     parser.add_argument('--base', type=float, nargs='?', help="The base run time for 1 instance based on which the scalability factor will be calculated")
     parser.add_argument('--force', dest="force", action='store_true', help="Ignore errors")
     parser.set_defaults(force=False)
-    parser.add_argument('--pinning', type=int, nargs='+', help="The order in which the instances will be assigned into each CPU. If there are more instances than there are items in this list, the pinning will wrap")
+    parser.add_argument('--pinning', type=str, nargs='?', help="The order in which the instances will be assigned into each CPU. If there are more instances than there are items in this list, the pinning will wrap")
     parser.add_argument('--command', required=True, type=str, nargs=argparse.REMAINDER, help="The terminal command to be run. Should be the last argument, as the rest of the string will be interpreted to be part of the command to run, not as parameters for this script")
     parser.add_argument('--version', action='version', version='%(prog)s {0}\n'.format(__version__))
 
@@ -103,7 +103,9 @@ def main():
         os.makedirs(args.results)
 
     # Verify pinning order is sane
+    print(args.pinning)
     if args.pinning:
+        args.pinning = [int(elem) for elem in args.pinning.split(',')]
         verifypinning(args.pinning, args.force)
 
     # Record the options script was run with

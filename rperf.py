@@ -20,7 +20,7 @@ from StringIO import StringIO
 from copy import copy, deepcopy
 import json
 
-MULTIPLE_INSTANCES_PATH = os.path.join(os.path.realpath(__file__), 'multiple_instances.py')
+MULTIPLE_INSTANCES_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'multiple-instances.py')
 
 def make_hash(dict_):
     """

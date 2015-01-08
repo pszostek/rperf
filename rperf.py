@@ -250,7 +250,6 @@ def gather_results(
     hash_run_dict = OrderedDict()
     for conf_run in conf:
         hash_ = make_hash(conf_run) 
-        print(conf_run, hash_)
         hash_run_dict[hash_] = conf_run
         for _ in xrange(times):
             runs.append(conf_run)
@@ -265,7 +264,9 @@ def gather_results(
                                       pfm_events=run["pfm-events"],
                                       precmd=run["precmd"],
                                       env=run["env"],
-                                      command=run["command"])
+                                      command=run["command"],
+                                      instances=run["instances"],
+                                      pinning=run["pinning"])
         host = run["host"]
         user = run["user"]
         hash_ = make_hash(run) # when saving the results, the key will be a hash instead of user-given id

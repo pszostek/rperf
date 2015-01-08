@@ -54,6 +54,8 @@ def get_conf(conf_filename):
             run_cpy['host'] = 'localhost'
         if 'env' in run_cpy:
             assert isinstance(run_cpy['env'], dict)
+        else:
+            run_cpy['env'] = None
         if 'user' not in run_cpy:
             run_cpy['user'] = None
         if 'precmd' not in run_cpy:

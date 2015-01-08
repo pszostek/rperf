@@ -20,6 +20,7 @@ from StringIO import StringIO
 from copy import copy, deepcopy
 import json
 
+MULTIPLE_INSTANCES_PATH = os.path.join(os.path.realpath(__file__), 'multiple_instances.py')
 
 def make_hash(dict_):
     """
@@ -377,9 +378,9 @@ def make_remote_command(events, pfm_events, precmd, env, command, instances, pin
 
     if instances > 1:
         if pinning:
-            command += "multiple_instances.py --pinning {pin} --instances {inst} --command ".format(pin=pinning, inst=instances)
+            command += MULTIPLE_INSTANCES_PATH + " --pinning {pin} --instances {inst} --command ".format(pin=pinning, inst=instances)
         else:
-            command += "multiple_instances.py --instances {inst} --command ".format(pin=pinning, inst=instances)
+            command += MULTIPLE_INSTANCES_PATH + " --instances {inst} --command ".format(pin=pinning, inst=instances)
     else:
         if pinning:
             command += "taskset -c {pin}".format(pin=pinning)

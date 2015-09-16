@@ -55,7 +55,6 @@ def get_conf(conf_filename):
             run_cpy['user'] = None
         if 'precmd' not in run_cpy:
             run_cpy['precmd'] = None
-        assert 'events' in run_cpy or 'pfm-events' in run_cpy
         if 'events' not in run_cpy:
             run_cpy['events'] = None
         else:

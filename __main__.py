@@ -371,13 +371,13 @@ def output_results(results, output_buffer, hosts_vertically):
 def make_command_string(events, pfm_events, precmd, env, command, host, user):
     """Generates an exact string to be passed to Popen"""
     binary = command
-    command = "perf stat"
+    command = "perf stat "
 
     if pfm_events:
-        command += " --pfm-events %s " % ','.join(pfm_events)
+        command += "--pfm-events %s " % ','.join(pfm_events)
 
     if events:
-        command += " -e %s " % ','.join(events)
+        command += "-e %s " % ','.join(events)
 
     command += binary
     if isinstance(precmd, basestring):

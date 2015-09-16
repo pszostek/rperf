@@ -1,0 +1,4 @@
+id,host,command,events
+1,localhost,echo 1,"L1-dcache-load-misses,L1-icache-load-misses"
+2,localhost,echo 1,"L1-dcache-load-misses,L1-icache-load-misses"
+3,localhost,echo 1,"L1-dcache-load-misses,L1-icache-load-misses"

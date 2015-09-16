@@ -106,6 +106,9 @@ def parse_perf(perf_output, include_time):
                     value = int(parts[0].replace("'", '').replace(',', ''))
                     # get rid of commas
                     stats[parts[1]] = value
+                except ValueError: # it's a float, not an int
+                    value = float(parts[0].replace("'", '').replace(',', ''))
+                    stats[parts[1]] = value
                 except IndexError:  # OK, there is nothing in this line
                     pass
     return stats

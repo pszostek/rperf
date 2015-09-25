@@ -176,6 +176,11 @@ def gather_single(job, results, stdout_queue, done_hosts_queue, include_time,
                   verbose, print_stdout, print_stderr, grab_output=False):
     """Calls a single command and returns things to be printed via a queue
 
+    job: an instance of Job
+    results: a dictionary to write results to
+    stdout_queue: a Queue object to print stuff without races
+    done_hosts_queue: a Queue to signalize vacant hosts
+
     This function is a thread target function.
     """
     if verbose:
@@ -234,7 +239,11 @@ def gather_single(job, results, stdout_queue, done_hosts_queue, include_time,
 def make_list_of_runs(conf, times, randomize):
     """Makes a list of runs with randomization and repetitions
 
-    Return a list of run dictionaries
+    conf: configuration file expressed as a list of dictionaries
+    times: an integer specifying how many times each command has to be run
+    randomize: a boolean value saying whether the runs should be mixed or launched as in config
+
+    Return a list of run dictionaries, possibly randomized
     """
     runs = []
     for conf_run in conf:
@@ -246,8 +255,15 @@ def make_list_of_runs(conf, times, randomize):
         random.shuffle(runs)
     return runs
 
-def make_list_of_jobs(conf, times, randomize):
-    """Generates list of all jobs to be run"""
+def make_list_of_jobs(conf, times, randomize, work_dir):
+    """Generates list of all jobs to be run
+
+    conf: configuration file expressed as a list of dictionaries
+    times: an integer specifying how many times each command has to be run
+    randomize: a boolean value saying whether the runs should be mixed or launched as in config
+
+    Returns a list of Job instances
+    """
     runs = make_list_of_runs(conf, times, randomize)
     jobs = []
     for run in runs:
@@ -257,15 +273,16 @@ def make_list_of_jobs(conf, times, randomize):
                                       env=run["env"],
                                       command=run["command"],
                                       host=run["host"],
-                                      user=run["user"])
+                                      user=run["user"],
+                                      work_dir=work_dir)
         id_ = make_hash(run)
         jobs.append(Job(run["host"], id_, command, run))
     return jobs
 
-def gather_results(jobs, verbose, include_time, grab_output, print_stdout, print_stderr):
+def gather_results(jobs, verbose, include_time, grab_output, print_stdout, print_stderr, work_dir):
     """Calls the commands for each host in parallel and returns stats
 
-       jobs is a list of Job elements
+       jobs is a list of Job instances
        host_commands_dict = {host:[(id,command),(id,command)]}
     """
     results = OrderedDict()
@@ -369,7 +386,7 @@ def output_results(results, output_buffer, hosts_vertically):
             output_buffer.write(row + '\n')
 
 
-def make_command_string(events, pfm_events, precmd, env, command, host, user):
+def make_command_string(events, pfm_events, precmd, env, command, host, user, work_dir):
     """Generates an exact string to be passed to Popen"""
     binary = command
     command = "perf stat"
@@ -391,6 +408,9 @@ def make_command_string(events, pfm_events, precmd, env, command, host, user):
         command = "{precmds} && {command}".format(
             precmds=precmds,
             command=command)
+
+    if work_dir != None:
+        command = "cd %s && %s" % (work_dir, command)
 
     if env:
         for key, value in env.items():
@@ -483,6 +503,11 @@ def main():
         help="Configuration file path (JSON)",
         metavar="CONF_FILE")
     parser.add_option(
+        "--work-dir",
+        dest="work_dir",
+        help="User DIR as the working directory",
+        metavar="DIR")
+    parser.add_option(
         '--tool',
         dest="tool",
         help="Use TOOL to run the command",
@@ -526,9 +551,14 @@ def main():
         print("\nPath to the configuration file was not given.\n")
         parser.print_help()
         sys.exit(1)
+
     elif not os.path.isfile(options.conf):
         print("Given path does not point to a file.\n")
         sys.exit(2)
+
+    if options.work_dir and not os.path.exists(options.work_dir):
+        print("Given working directory does not exist. Exiting.")
+        sys.exit(3)
 
     if options.output and os.path.isfile(options.output) and options.verbose:
         print("Given output file exists. It will be overwritten.")
@@ -539,7 +569,10 @@ def main():
     output_path = options.output if options.output is not None else "rperf.csv"
 
     conf = get_conf(conf_filename=options.conf)
-    jobs = make_list_of_jobs(conf, int(options.times), options.randomize)
+    jobs = make_list_of_jobs(conf=conf,
+        times=int(options.times),
+        randomize=options.randomize,
+        work_dir=options.work_dir)
 
     if options.dump_commands:
         for job in jobs:

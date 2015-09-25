@@ -55,7 +55,6 @@ def get_conf(conf_filename):
             run_cpy['user'] = None
         if 'precmd' not in run_cpy:
             run_cpy['precmd'] = None
-        assert 'events' in run_cpy or 'pfm-events' in run_cpy
         if 'events' not in run_cpy:
             run_cpy['events'] = None
         else:
@@ -106,6 +105,9 @@ def parse_perf(perf_output, include_time):
                 try:
                     value = int(parts[0].replace("'", '').replace(',', ''))
                     # get rid of commas
+                    stats[parts[1]] = value
+                except ValueError: # it's a float, not an int
+                    value = float(parts[0].replace("'", '').replace(',', ''))
                     stats[parts[1]] = value
                 except IndexError:  # OK, there is nothing in this line
                     pass
@@ -389,13 +391,13 @@ def output_results(results, output_buffer, hosts_vertically):
 def make_command_string(events, pfm_events, precmd, env, command, host, user, work_dir):
     """Generates an exact string to be passed to Popen"""
     binary = command
-    command = "perf stat"
+    command = "perf stat "
 
     if pfm_events:
-        command += " --pfm-events %s " % ','.join(pfm_events)
+        command += "--pfm-events %s " % ','.join(pfm_events)
 
     if events:
-        command += " -e %s " % ','.join(events)
+        command += "-e %s " % ','.join(events)
 
     command += binary
     if isinstance(precmd, basestring):

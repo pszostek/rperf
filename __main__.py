@@ -39,7 +39,7 @@ Stats = namedtuple('Stats', ['min', 'max', 'average', 'median', 'std_dev'])
 
 
 def get_conf(conf_filename):
-    """Reads and sanitizes configuration from a json file"""
+    """Reads and sanitizes configuration from a json or csv file"""
     def sanitize_single_run(run):
         run_cpy = copy(run)
         if 'id' not in run_cpy:
@@ -482,7 +482,7 @@ def main():
     parser.add_option(
         "--conf",
         dest="conf",
-        help="Configuration file path (JSON)",
+        help="Configuration file path (.json or .csv)",
         metavar="CONF_FILE")
     parser.add_option(
         '--tool',

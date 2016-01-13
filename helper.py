@@ -8,11 +8,11 @@ except ImportError:
     from OrderedDict import OrderedDict
 
 
-def intigerize(number):
+def integerize(number):
     if isinstance(number, int):
         return number
     else:
-        if number-int(number)<0.00001:
+        if number-int(number)<0.00001: # the number is almost an integer
             return int(number)
         else:
             return number
@@ -76,21 +76,3 @@ def stddev(data):
     pvar = sum_of_sq_devs/length # the population variance
     return pvar**0.5
 
-def make_hash(dict_):
-    """
-    http://stackoverflow.com/questions/5884066/hashing-a-python-dictionary
-
-    Makes a hash from a dictionary, list, tuple or set to any level,
-    that contains only other hashable types (including any lists, tuples,
-    sets and dictionaries).
-    """
-    if isinstance(dict_, (set, tuple, list)):
-        return tuple([make_hash(e) for e in dict_])
-    elif not isinstance(dict_, dict):
-        return hash(dict_)
-
-    new_dict = deepcopy(dict_)
-    for key, value in new_dict.items():
-        new_dict[key] = make_hash(value)
-
-    return hash(tuple(frozenset(sorted(new_dict.items()))))
